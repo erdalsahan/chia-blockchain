@@ -276,3 +276,68 @@ class RequestFeeEstimates(Streamable):
 @dataclass(frozen=True)
 class RespondFeeEstimates(Streamable):
     estimates: FeeEstimateGroup
+
+
+@streamable
+@dataclass(frozen=True)
+class RequestAddPuzzleSubscriptions(Streamable):
+    puzzle_hashes: List[bytes32]
+    min_height: uint32
+    header_hash: Optional[bytes32]
+
+
+@streamable
+@dataclass(frozen=True)
+class RespondAddPuzzleSubscriptions(Streamable):
+    puzzle_hashes: List[bytes32]
+
+
+@streamable
+@dataclass(frozen=True)
+class RequestAddCoinSubscriptions(Streamable):
+    coin_ids: List[bytes32]
+    min_height: uint32
+    header_hash: Optional[bytes32]
+
+
+@streamable
+@dataclass(frozen=True)
+class RespondAddCoinSubscriptions(Streamable):
+    coin_ids: List[bytes32]
+
+
+@streamable
+@dataclass(frozen=True)
+class RequestRemovePuzzleSubscriptions(Streamable):
+    puzzle_hashes: List[bytes32]
+
+
+@streamable
+@dataclass(frozen=True)
+class RespondRemovePuzzleSubscriptions(Streamable):
+    puzzle_hashes: List[bytes32]
+
+
+@streamable
+@dataclass(frozen=True)
+class RequestRemoveCoinSubscriptions(Streamable):
+    coin_ids: List[bytes32]
+
+
+@streamable
+@dataclass(frozen=True)
+class RespondRemoveCoinSubscriptions(Streamable):
+    coin_ids: List[bytes32]
+
+
+@streamable
+@dataclass(frozen=True)
+class RequestResetSubscriptions(Streamable):
+    pass
+
+
+@streamable
+@dataclass(frozen=True)
+class RespondResetSubscriptions(Streamable):
+    puzzle_hashes: List[bytes32]
+    coin_ids: List[bytes32]

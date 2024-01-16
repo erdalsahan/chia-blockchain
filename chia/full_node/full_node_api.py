@@ -1629,6 +1629,92 @@ class FullNodeAPI:
         msg = make_msg(ProtocolMessageTypes.respond_fee_estimates, response)
         return msg
 
+    @api_request(
+        peer_required=True,
+        reply_types=[ProtocolMessageTypes.respond_add_puzzle_subscriptions],
+    )
+    async def request_add_puzzle_subscriptions(
+        self, request: wallet_protocol.RequestAddPuzzleSubscriptions, peer: WSChiaConnection
+    ) -> Message:
+        peer_id = peer.peer_node_id
+        max_subscriptions = self.max_subscriptions(peer)
+        subs = self.full_node.subscriptions
+
+        new_subscriptions = set(request.puzzle_hashes) - subs.puzzle_subscriptions(peer_id)
+        added = subs.add_puzzle_subscriptions(peer_id, list(new_subscriptions), max_subscriptions)
+
+        response = wallet_protocol.RespondAddPuzzleSubscriptions(list(added))
+        msg = make_msg(ProtocolMessageTypes.respond_add_puzzle_subscriptions, response)
+        return msg
+
+    @api_request(
+        peer_required=True,
+        reply_types=[ProtocolMessageTypes.respond_add_coin_subscriptions],
+    )
+    async def request_add_coin_subscriptions(
+        self, request: wallet_protocol.RequestAddCoinSubscriptions, peer: WSChiaConnection
+    ) -> Message:
+        peer_id = peer.peer_node_id
+        max_subscriptions = self.max_subscriptions(peer)
+        subs = self.full_node.subscriptions
+
+        new_subscriptions = set(request.coin_ids) - subs.coin_subscriptions(peer_id)
+        added = subs.add_coin_subscriptions(peer_id, list(new_subscriptions), max_subscriptions)
+
+        response = wallet_protocol.RespondAddCoinSubscriptions(list(added))
+        msg = make_msg(ProtocolMessageTypes.respond_add_coin_subscriptions, response)
+        return msg
+
+    @api_request(
+        peer_required=True,
+        reply_types=[ProtocolMessageTypes.respond_remove_puzzle_subscriptions],
+    )
+    async def request_remove_puzzle_subscriptions(
+        self, request: wallet_protocol.RequestRemovePuzzleSubscriptions, peer: WSChiaConnection
+    ) -> Message:
+        peer_id = peer.peer_node_id
+        subs = self.full_node.subscriptions
+
+        removed = subs.remove_puzzle_subscriptions(peer_id, request.puzzle_hashes)
+
+        response = wallet_protocol.RespondRemovePuzzleSubscriptions(list(removed))
+        msg = make_msg(ProtocolMessageTypes.respond_remove_puzzle_subscriptions, response)
+        return msg
+
+    @api_request(
+        peer_required=True,
+        reply_types=[ProtocolMessageTypes.respond_remove_coin_subscriptions],
+    )
+    async def request_remove_coin_subscriptions(
+        self, request: wallet_protocol.RequestAddCoinSubscriptions, peer: WSChiaConnection
+    ) -> Message:
+        peer_id = peer.peer_node_id
+        subs = self.full_node.subscriptions
+
+        removed = subs.remove_coin_subscriptions(peer_id, request.coin_ids)
+
+        response = wallet_protocol.RespondRemoveCoinSubscriptions(list(removed))
+        msg = make_msg(ProtocolMessageTypes.respond_remove_coin_subscriptions, response)
+        return msg
+
+    @api_request(
+        peer_required=True,
+        reply_types=[ProtocolMessageTypes.respond_reset_subscriptions],
+    )
+    async def request_reset_subscriptions(
+        self, _request: wallet_protocol.RequestResetSubscriptions, peer: WSChiaConnection
+    ) -> Message:
+        peer_id = peer.peer_node_id
+        subs = self.full_node.subscriptions
+
+        ph_subs = subs.puzzle_subscriptions(peer_id)
+        coin_subs = subs.coin_subscriptions(peer_id)
+        subs.remove_peer(peer_id)
+
+        response = wallet_protocol.RespondResetSubscriptions(list(ph_subs), list(coin_subs))
+        msg = make_msg(ProtocolMessageTypes.respond_reset_subscriptions, response)
+        return msg
+
     def max_subscriptions(self, peer: WSChiaConnection) -> int:
         if self.is_trusted(peer):
             return cast(int, self.full_node.config.get("trusted_max_subscribe_items", 2000000))

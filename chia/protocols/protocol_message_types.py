@@ -114,4 +114,16 @@ class ProtocolMessageTypes(Enum):
     request_fee_estimates = 89
     respond_fee_estimates = 90
 
+    # New wallet sync protocol
+    request_add_puzzle_subscriptions = 92
+    respond_add_puzzle_subscriptions = 93
+    request_add_coin_subscriptions = 94
+    respond_add_coin_subscriptions = 95
+    request_remove_puzzle_subscriptions = 96
+    respond_remove_puzzle_subscriptions = 97
+    request_remove_coin_subscriptions = 98
+    respond_remove_coin_subscriptions = 99
+    request_reset_subscriptions = 100
+    respond_reset_subscriptions = 101
+
     error = 255
