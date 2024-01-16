@@ -8,7 +8,7 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, cast
 
 import anyio
 from chia_rs import AugSchemeMPL, G1Element, G2Element
@@ -1482,12 +1482,8 @@ class FullNodeAPI:
         self, request: wallet_protocol.RegisterForPhUpdates, peer: WSChiaConnection
     ) -> Message:
         trusted = self.is_trusted(peer)
-        if trusted:
-            max_subscriptions = self.full_node.config.get("trusted_max_subscribe_items", 2000000)
-            max_items = self.full_node.config.get("trusted_max_subscribe_response_items", 500000)
-        else:
-            max_subscriptions = self.full_node.config.get("max_subscribe_items", 200000)
-            max_items = self.full_node.config.get("max_subscribe_response_items", 100000)
+        max_items = self.max_subscribe_response_items(peer)
+        max_subscriptions = self.max_subscriptions(peer)
 
         # the returned puzzle hashes are the ones we ended up subscribing to.
         # It will have filtered duplicates and ones exceeding the subscription
@@ -1553,12 +1549,8 @@ class FullNodeAPI:
     async def register_interest_in_coin(
         self, request: wallet_protocol.RegisterForCoinUpdates, peer: WSChiaConnection
     ) -> Message:
-        if self.is_trusted(peer):
-            max_subscriptions = self.full_node.config.get("trusted_max_subscribe_items", 2000000)
-            max_items = self.full_node.config.get("trusted_max_subscribe_response_items", 500000)
-        else:
-            max_subscriptions = self.full_node.config.get("max_subscribe_items", 200000)
-            max_items = self.full_node.config.get("max_subscribe_response_items", 100000)
+        max_items = self.max_subscribe_response_items(peer)
+        max_subscriptions = self.max_subscriptions(peer)
 
         # TODO: apparently we have tests that expect to receive a
         # RespondToCoinUpdates even when subscribing to the same coin multiple
@@ -1636,6 +1628,18 @@ class FullNodeAPI:
         response = RespondFeeEstimates(FeeEstimateGroup(error=None, estimates=fee_estimates))
         msg = make_msg(ProtocolMessageTypes.respond_fee_estimates, response)
         return msg
+
+    def max_subscriptions(self, peer: WSChiaConnection) -> int:
+        if self.is_trusted(peer):
+            return cast(int, self.full_node.config.get("trusted_max_subscribe_items", 2000000))
+        else:
+            return cast(int, self.full_node.config.get("max_subscribe_items", 200000))
+
+    def max_subscribe_response_items(self, peer: WSChiaConnection) -> int:
+        if self.is_trusted(peer):
+            return cast(int, self.full_node.config.get("trusted_max_subscribe_response_items", 500000))
+        else:
+            return cast(int, self.full_node.config.get("max_subscribe_response_items", 100000))
 
     def is_trusted(self, peer: WSChiaConnection) -> bool:
         return self.server.is_trusted_peer(peer, self.full_node.config.get("trusted_peers", {}))
