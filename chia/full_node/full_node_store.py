@@ -206,8 +206,22 @@ class FullNodeStore:
         if result is None:
             return None
         # The old API doesn't distinguish between duplicate UnfinishedBlocks,
-        # just return the first one
-        return next(iter(result.values())).unfinished_block
+        # return the *best* UnfinishedBlock. This is the path taken when the
+        # timelord sends us an infusion point with this specific reward block
+        # hash. We pick one of the unfinished blocks based on an arbitrary but
+        # deterministic property.
+        # this sorts the UnfinishedBlocks by the foliage hash, and picks the
+        # smallest hash
+        all_blocks = list(result.items())
+        if len(all_blocks) == 1:
+            return all_blocks[0][1].unfinished_block
+
+        # if there are unfinished blocks with foliage (i.e. not None) we prefer
+        # those, so drop the first element
+        all_blocks = [e for e in all_blocks if e[0] is not None]
+        all_blocks = sorted(all_blocks)
+
+        return all_blocks[0][1].unfinished_block
 
     def get_unfinished_block2(
         self, unfinished_reward_hash: bytes32, unfinished_foliage_hash: Optional[bytes32]
@@ -216,10 +230,10 @@ class FullNodeStore:
         if result is None:
             return None, 0
         if unfinished_foliage_hash is None:
-            return next(iter(result.values())).unfinished_block, len(result)
-        else:
-            entry = result.get(unfinished_foliage_hash)
-            return (None if entry is None else entry.unfinished_block), len(result)
+            return self.get_unfinished_block(unfinished_reward_hash), len(result)
+
+        entry = result.get(unfinished_foliage_hash)
+        return (None if entry is None else entry.unfinished_block), len(result)
 
     def get_unfinished_block_result(self, unfinished_reward_hash: bytes32) -> Optional[PreValidationResult]:
         result = self.unfinished_blocks.get(unfinished_reward_hash, None)
