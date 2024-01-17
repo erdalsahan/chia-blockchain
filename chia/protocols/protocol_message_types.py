@@ -125,5 +125,10 @@ class ProtocolMessageTypes(Enum):
     respond_remove_coin_subscriptions = 99
     request_reset_subscriptions = 100
     respond_reset_subscriptions = 101
+    request_puzzle_state = 102
+    respond_puzzle_state = 103
+    reject_puzzle_state = 104
+    request_coin_state = 105
+    respond_coin_state = 106
 
     error = 255

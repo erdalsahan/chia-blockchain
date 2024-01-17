@@ -1715,6 +1715,56 @@ class FullNodeAPI:
         msg = make_msg(ProtocolMessageTypes.respond_reset_subscriptions, response)
         return msg
 
+    @api_request(peer_required=True, reply_types=[ProtocolMessageTypes.respond_puzzle_state])
+    async def request_puzzle_state(
+        self, request: wallet_protocol.RequestPuzzleState, peer: WSChiaConnection
+    ) -> Message:
+        header_hash = self.full_node.blockchain.height_to_hash(request.min_height)
+
+        if request.header_hash is not None and request.header_hash != header_hash:
+            rejection = wallet_protocol.RejectPuzzleState(header_hash)
+            msg = make_msg(ProtocolMessageTypes.reject_puzzle_state, rejection)
+            return msg
+
+        count = 15000
+        puzzle_hashes = request.puzzle_hashes[:count]
+
+        (coin_states, next_height, is_finished) = await self.full_node.coin_store.batch_coin_states_by_puzzle_hashes(
+            puzzle_hashes,
+            min_height=request.min_height,
+            include_spent=request.filters.include_spent,
+            include_unspent=request.filters.include_unspent,
+            include_hinted=request.filters.include_hinted,
+        )
+
+        next_header_hash = self.full_node.blockchain.height_to_hash(next_height)
+        assert next_header_hash is not None
+
+        if is_finished:
+            peer_id = peer.peer_node_id
+            subs = self.full_node.subscriptions
+            max_subscriptions = self.max_subscriptions(peer)
+            subs.add_puzzle_subscriptions(peer_id, puzzle_hashes, max_subscriptions)
+
+        response = wallet_protocol.RespondPuzzleState(
+            puzzle_hashes, next_height, next_header_hash, is_finished, coin_states
+        )
+        msg = make_msg(ProtocolMessageTypes.respond_puzzle_state, response)
+        return msg
+
+    @api_request(peer_required=True, reply_types=[ProtocolMessageTypes.respond_coin_state])
+    async def request_coin_state(self, request: wallet_protocol.RequestCoinState, peer: WSChiaConnection) -> Message:
+        coin_states = await self.full_node.coin_store.get_coin_states_by_ids(True, set(request.coin_ids))
+
+        peer_id = peer.peer_node_id
+        subs = self.full_node.subscriptions
+        max_subscriptions = self.max_subscriptions(peer)
+        subs.add_coin_subscriptions(peer_id, request.coin_ids, max_subscriptions)
+
+        response = wallet_protocol.RespondCoinState(request.coin_ids, coin_states)
+        msg = make_msg(ProtocolMessageTypes.respond_coin_state, response)
+        return msg
+
     def max_subscriptions(self, peer: WSChiaConnection) -> int:
         if self.is_trusted(peer):
             return cast(int, self.full_node.config.get("trusted_max_subscribe_items", 2000000))

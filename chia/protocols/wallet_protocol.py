@@ -280,6 +280,14 @@ class RespondFeeEstimates(Streamable):
 
 @streamable
 @dataclass(frozen=True)
+class CoinStateFilters(Streamable):
+    include_spent: bool
+    include_unspent: bool
+    include_hinted: bool
+
+
+@streamable
+@dataclass(frozen=True)
 class RequestAddPuzzleSubscriptions(Streamable):
     puzzle_hashes: List[bytes32]
     min_height: uint32
@@ -341,3 +349,43 @@ class RequestResetSubscriptions(Streamable):
 class RespondResetSubscriptions(Streamable):
     puzzle_hashes: List[bytes32]
     coin_ids: List[bytes32]
+
+
+@streamable
+@dataclass(frozen=True)
+class RequestPuzzleState(Streamable):
+    puzzle_hashes: List[bytes32]
+    min_height: uint32
+    header_hash: Optional[bytes32]
+    filters: CoinStateFilters
+    subscribe_when_finished: bool
+
+
+@streamable
+@dataclass(frozen=True)
+class RespondPuzzleState(Streamable):
+    puzzle_hashes: List[bytes32]
+    next_height: uint32
+    next_header_hash: bytes32
+    is_finished: bool
+    coin_states: List[CoinState]
+
+
+@streamable
+@dataclass(frozen=True)
+class RejectPuzzleState(Streamable):
+    header_hash: Optional[bytes32]
+
+
+@streamable
+@dataclass(frozen=True)
+class RequestCoinState(Streamable):
+    coin_ids: List[bytes32]
+    subscribe: bool
+
+
+@streamable
+@dataclass(frozen=True)
+class RespondCoinState(Streamable):
+    coin_ids: List[bytes32]
+    coin_states: List[CoinState]
