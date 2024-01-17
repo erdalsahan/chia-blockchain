@@ -10,13 +10,13 @@ import pytest
 from chia_rs import AugSchemeMPL, G1Element, G2Element, PrivateKey
 from click.testing import CliRunner
 
+from chia.cmds.cmd_classes import WalletClientInfo
 from chia.cmds.cmds_util import TransactionBundle
 from chia.cmds.signer import (
     ApplySignaturesCMD,
     ExecuteSigningInstructionsCMD,
     GatherSigningInfoCMD,
     PushTransactionsCMD,
-    WalletClientInfo,
 )
 from chia.rpc.wallet_request_types import (
     ApplySignatures,
@@ -73,6 +73,7 @@ from chia.wallet.util.clvm_streamable import (
 from chia.wallet.util.tx_config import DEFAULT_COIN_SELECTION_CONFIG, DEFAULT_TX_CONFIG
 from chia.wallet.wallet import Wallet
 from chia.wallet.wallet_state_manager import WalletStateManager
+from tests.cmds.test_cmd_framework import check_click_parsing
 from tests.environments.wallet import WalletStateTransition, WalletTestFramework
 
 
@@ -768,6 +769,11 @@ async def test_signer_commands(wallet_environments: WalletTestFramework) -> None
     wallet: Wallet = wallet_environments.environments[0].xch_wallet
     wallet_state_manager: WalletStateManager = wallet_environments.environments[0].wallet_state_manager
     wallet_rpc: WalletRpcClient = wallet_environments.environments[0].rpc_client
+    client_info: WalletClientInfo = WalletClientInfo(
+        wallet_rpc,
+        wallet_state_manager.root_pubkey.get_fingerprint(),
+        wallet_state_manager.config,
+    )
 
     AMOUNT = uint64(1)
     [tx] = await wallet.generate_signed_transaction(AMOUNT, bytes32([0] * 32), DEFAULT_TX_CONFIG)
@@ -778,61 +784,33 @@ async def test_signer_commands(wallet_environments: WalletTestFramework) -> None
             file.write(bytes(TransactionBundle([tx])))
 
         await GatherSigningInfoCMD(
-            WalletClientInfo(
-                wallet_rpc,
-                wallet_state_manager.root_pubkey.get_fingerprint(),
-                wallet_state_manager.config,
-            ),
-            wallet_rpc.port,
-            wallet_state_manager.root_pubkey.get_fingerprint(),
-            "./temp-tb",
-            "chip-TBD",
-            100,
-            2,
-            "file",
-            ["./temp-si"],
-        ).async_run()
+            client_info=client_info,
+            transaction_file_in="./temp-tb",
+            compression="chip-TBD",
+            output_format="file",
+            output_file=["./temp-si"],
+        ).run()
 
         await ExecuteSigningInstructionsCMD(
-            WalletClientInfo(
-                wallet_rpc,
-                wallet_state_manager.root_pubkey.get_fingerprint(),
-                wallet_state_manager.config,
-            ),
-            wallet_rpc.port,
-            wallet_state_manager.root_pubkey.get_fingerprint(),
-            "chip-TBD",
-            ["./temp-si"],
-            100,
-            2,
-            "file",
-            ["./temp-sr"],
-        ).async_run()
+            client_info=client_info,
+            compression="chip-TBD",
+            signer_protocol_input=["./temp-si"],
+            output_format="file",
+            output_file=["./temp-sr"],
+        ).run()
 
         await ApplySignaturesCMD(
-            WalletClientInfo(
-                wallet_rpc,
-                wallet_state_manager.root_pubkey.get_fingerprint(),
-                wallet_state_manager.config,
-            ),
-            wallet_rpc.port,
-            wallet_state_manager.root_pubkey.get_fingerprint(),
-            "./temp-tb",
-            "chip-TBD",
-            ["./temp-sr"],
-            "./temp-stb",
-        ).async_run()
+            client_info=client_info,
+            transaction_file_in="./temp-tb",
+            compression="chip-TBD",
+            signer_protocol_input=["./temp-sr"],
+            transaction_file_out="./temp-stb",
+        ).run()
 
         await PushTransactionsCMD(
-            WalletClientInfo(
-                wallet_rpc,
-                wallet_state_manager.root_pubkey.get_fingerprint(),
-                wallet_state_manager.config,
-            ),
-            wallet_rpc.port,
-            wallet_state_manager.root_pubkey.get_fingerprint(),
-            "./temp-stb",
-        ).async_run()
+            client_info=client_info,
+            transaction_file_in="./temp-stb",
+        ).run()
 
         await wallet_environments.process_pending_states(
             [
@@ -857,3 +835,60 @@ async def test_signer_commands(wallet_environments: WalletTestFramework) -> None
                 ),
             ]
         )
+
+
+def test_signer_command_default_parsing() -> None:
+    check_click_parsing(
+        GatherSigningInfoCMD(
+            client_info=None,
+            wallet_rpc_port=None,
+            fingerprint=None,
+            transaction_file_in="in",
+            compression="none",
+            output_format="hex",
+            output_file=tuple(),
+        ),
+        "-i",
+        "in",
+    )
+
+    check_click_parsing(
+        ExecuteSigningInstructionsCMD(
+            client_info=None,
+            wallet_rpc_port=None,
+            fingerprint=None,
+            compression="none",
+            signer_protocol_input=("sp-in",),
+            output_format="hex",
+            output_file=tuple(),
+        ),
+        "-p",
+        "sp-in",
+    )
+
+    check_click_parsing(
+        ApplySignaturesCMD(
+            client_info=None,
+            wallet_rpc_port=None,
+            fingerprint=None,
+            transaction_file_in="in",
+            compression="none",
+            signer_protocol_input=("sp-in",),
+            transaction_file_out="out",
+        ),
+        "-i",
+        "in",
+        "-o",
+        "out",
+        "-p",
+        "sp-in",
+    )
+
+    check_click_parsing(
+        PushTransactionsCMD(
+            client_info=None,
+            transaction_file_in="in",
+        ),
+        "-i",
+        "in",
+    )

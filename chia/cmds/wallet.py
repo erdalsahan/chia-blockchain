@@ -11,7 +11,6 @@ from chia.cmds.check_wallet_db import help_text as check_help_text
 from chia.cmds.cmds_util import tx_out_cmd
 from chia.cmds.coins import coins_cmd
 from chia.cmds.plotnft import validate_fee
-from chia.cmds.signer import register_signer
 from chia.wallet.transaction_record import TransactionRecord
 from chia.wallet.transaction_sorting import SortKey
 from chia.wallet.util.address_type import AddressType
@@ -22,9 +21,6 @@ from chia.wallet.util.wallet_types import WalletType
 @click.pass_context
 def wallet_cmd(ctx: click.Context) -> None:
     pass
-
-
-register_signer(wallet_cmd)
 
 
 @wallet_cmd.command("get_transaction", help="Get a transaction")
