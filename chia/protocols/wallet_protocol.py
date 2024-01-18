@@ -365,9 +365,8 @@ class RequestPuzzleState(Streamable):
 @dataclass(frozen=True)
 class RespondPuzzleState(Streamable):
     puzzle_hashes: List[bytes32]
-    next_height: uint32
-    next_header_hash: bytes32
-    is_finished: bool
+    next_height: Optional[uint32]
+    next_header_hash: Optional[bytes32]
     coin_states: List[CoinState]
 
 

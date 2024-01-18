@@ -1729,7 +1729,7 @@ class FullNodeAPI:
         count = 15000
         puzzle_hashes = request.puzzle_hashes[:count]
 
-        (coin_states, next_height, is_finished) = await self.full_node.coin_store.batch_coin_states_by_puzzle_hashes(
+        (coin_states, next_height) = await self.full_node.coin_store.batch_coin_states_by_puzzle_hashes(
             puzzle_hashes,
             min_height=request.min_height,
             include_spent=request.filters.include_spent,
@@ -1737,18 +1737,16 @@ class FullNodeAPI:
             include_hinted=request.filters.include_hinted,
         )
 
-        next_header_hash = self.full_node.blockchain.height_to_hash(next_height)
-        assert next_header_hash is not None
-
-        if is_finished:
+        if next_height is None:
+            next_header_hash = None
             peer_id = peer.peer_node_id
             subs = self.full_node.subscriptions
             max_subscriptions = self.max_subscriptions(peer)
             subs.add_puzzle_subscriptions(peer_id, puzzle_hashes, max_subscriptions)
+        else:
+            next_header_hash = self.full_node.blockchain.height_to_hash(next_height)
 
-        response = wallet_protocol.RespondPuzzleState(
-            puzzle_hashes, next_height, next_header_hash, is_finished, coin_states
-        )
+        response = wallet_protocol.RespondPuzzleState(puzzle_hashes, next_height, next_header_hash, coin_states)
         msg = make_msg(ProtocolMessageTypes.respond_puzzle_state, response)
         return msg
 
