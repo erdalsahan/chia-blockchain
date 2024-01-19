@@ -61,11 +61,11 @@ def chia_command(cmd: click.Group, name: str, help: str) -> Callable[[Type[ChiaC
         if sys.version_info < (3, 10):  # stuff below 3.10 doesn't know about kw_only
             wrapped_cls: Type[ChiaCommand] = dataclass(  # type: ignore[assignment]
                 frozen=True,
-                kw_only=True,
             )(cls)
         else:
             wrapped_cls: Type[ChiaCommand] = dataclass(  # type: ignore[assignment]
                 frozen=True,
+                kw_only=True,
             )(cls)
         cls_fields = fields(wrapped_cls)  # type: ignore[arg-type]
         if inspect.iscoroutinefunction(cls.run):
