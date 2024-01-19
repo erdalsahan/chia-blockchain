@@ -8,7 +8,6 @@ import pytest
 from click.testing import CliRunner
 
 from chia.cmds.cmd_classes import ChiaCommand, NeedsWalletRPC, chia_command, option
-from chia.util.errors import CliRpcConnectionError
 from tests.conftest import ConsensusMode
 from tests.environments.wallet import WalletTestFramework
 from tests.wallet.conftest import *  # noqa
@@ -25,7 +24,11 @@ def check_click_parsing(cmd: ChiaCommand, *args: str) -> None:
 
     def new_run(self: Any) -> None:
         # cmd is appropriately not recognized as a dataclass but I'm not sure how to hint that something is a dataclass
-        assert asdict(self) == asdict(cmd)  # type: ignore[call-overload]
+        other_dict = asdict(cmd)  # type: ignore[call-overload]
+        for k, v in asdict(self).items():
+            if k == "context":
+                continue
+            assert v == other_dict[k]
 
     setattr(mock_type, "run", new_run)
     chia_command(_cmd, "_", "")(mock_type)
@@ -137,6 +140,11 @@ def test_option_loading() -> None:
 )
 @pytest.mark.anyio
 async def test_wallet_rpc_helper(wallet_environments: WalletTestFramework) -> None:
+    port: int = wallet_environments.environments[0].rpc_client.port
+
+    assert wallet_environments.environments[0].node.logged_in_fingerprint is not None
+    fingerprint: int = wallet_environments.environments[0].node.logged_in_fingerprint
+
     @click.group()
     def cmd() -> None:
         pass
@@ -152,9 +160,9 @@ async def test_wallet_rpc_helper(wallet_environments: WalletTestFramework) -> No
         [
             "temp_cmd",
             "-wp",
-            "1111",
+            str(port),
             "-f",
-            "1234",
+            str(fingerprint),
         ],
         catch_exceptions=False,
     )
@@ -169,11 +177,12 @@ async def test_wallet_rpc_helper(wallet_environments: WalletTestFramework) -> No
     )
     assert result.output == ""
 
-    expected_command = TempCMD(wallet_rpc_port=1111, fingerprint=1234)
-    check_click_parsing(expected_command, "-wp", "1111", "-f", "1234")
+    expected_command = TempCMD(
+        context={"root_path": wallet_environments.environments[0].node.root_path},
+        wallet_rpc_port=port,
+        fingerprint=fingerprint,
+    )
+    check_click_parsing(expected_command, "-wp", str(port), "-f", str(fingerprint))
 
-    # This is the best way I can think to test this right now because at least it proves it made it to the wallet node
-    # and then the SSL certificate verification failed
-    with pytest.raises(CliRpcConnectionError):
-        async with expected_command.wallet_rpc():
-            pass
+    async with expected_command.wallet_rpc(consume_errors=False) as client_info:
+        assert await client_info.client.get_logged_in_fingerprint() == fingerprint

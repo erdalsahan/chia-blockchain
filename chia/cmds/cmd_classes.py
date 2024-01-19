@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import sys
 from contextlib import asynccontextmanager
 from dataclasses import MISSING, Field, dataclass, field, fields
 from typing import Any, AsyncIterator, Callable, Dict, Iterable, Optional, Protocol, Type, Union
@@ -29,7 +30,7 @@ ChiaCommand = Union[SyncChiaCommand, AsyncChiaCommand]
 
 
 def option(*param_decls: str, **kwargs: Any) -> Any:
-    return field(
+    return field(  # pylint: disable=invalid-field-call
         metadata=dict(
             is_command_option=True,
             param_decls=tuple(param_decls),
@@ -57,26 +58,42 @@ def chia_command(cmd: click.Group, name: str, help: str) -> Callable[[Type[ChiaC
     def _chia_command(cls: Type[ChiaCommand]) -> Type[ChiaCommand]:
         # The type ignores here are largely due to the fact that the class information is not preserved after being
         # passed through the dataclass wrapper.  Not sure what to do about this right now.
-        wrapped_cls: Type[ChiaCommand] = dataclass(  # type: ignore[assignment]
-            frozen=True,
-            kw_only=True,
-        )(cls)
+        if sys.version_info < (3, 10):  # stuff below 3.10 doesn't know about kw_only
+            wrapped_cls: Type[ChiaCommand] = dataclass(  # type: ignore[assignment]
+                frozen=True,
+                kw_only=True,
+            )(cls)
+        else:
+            wrapped_cls: Type[ChiaCommand] = dataclass(  # type: ignore[assignment]
+                frozen=True,
+            )(cls)
         cls_fields = fields(wrapped_cls)  # type: ignore[arg-type]
         if inspect.iscoroutinefunction(cls.run):
 
-            async def async_base_cmd(**kwargs: Any) -> None:
-                await wrapped_cls(**kwargs).run()  # type: ignore[misc]
+            async def async_base_cmd(*args: Any, **kwargs: Any) -> None:
+                await wrapped_cls(*args, **kwargs).run()  # type: ignore[misc]
 
-            def base_cmd(**kwargs: Any) -> None:
-                coro = async_base_cmd(**kwargs)
+            def base_cmd(*args: Any, **kwargs: Any) -> None:
+                coro = async_base_cmd(*args, **kwargs)
                 assert coro is not None
                 asyncio.run(coro)
 
         else:
 
-            def base_cmd(**kwargs: Any) -> None:
+            def base_cmd(*args: Any, **kwargs: Any) -> None:
                 wrapped_cls(**kwargs).run()
 
+        marshalled_cmd = base_cmd
+        if issubclass(wrapped_cls, NeedsContext):
+
+            def strip_click_context(func: SyncCmd) -> SyncCmd:
+                def _inner(**kwargs: Any) -> None:
+                    context: Dict[str, Any] = kwargs["ctx"].obj if kwargs["ctx"].obj is not None else {}
+                    func(context=context, **kwargs)
+
+                return _inner
+
+            marshalled_cmd = click.pass_context(strip_click_context(marshalled_cmd))
         marshalled_cmd = _apply_options(base_cmd, cls_fields)
         cmd.command(name, help=help)(marshalled_cmd)
         return wrapped_cls
@@ -86,7 +103,15 @@ def chia_command(cmd: click.Group, name: str, help: str) -> Callable[[Type[ChiaC
 
 @dataclass_transform()
 def command_helper(cls: Type[Any]) -> Type[Any]:
-    return dataclass(frozen=True, kw_only=True)(cls)
+    if sys.version_info < (3, 10):  # stuff below 3.10 doesn't support kw_only
+        return dataclass(frozen=True)(cls)
+    else:
+        return dataclass(frozen=True, kw_only=True)(cls)
+
+
+@command_helper
+class NeedsContext:
+    context: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -97,7 +122,7 @@ class WalletClientInfo:
 
 
 @command_helper
-class NeedsWalletRPC:
+class NeedsWalletRPC(NeedsContext):
     client_info: Optional[WalletClientInfo] = None
     wallet_rpc_port: Optional[int] = option(
         "-wp",
@@ -118,9 +143,15 @@ class NeedsWalletRPC:
     )
 
     @asynccontextmanager
-    async def wallet_rpc(self) -> AsyncIterator[WalletClientInfo]:
+    async def wallet_rpc(self, **kwargs: Any) -> AsyncIterator[WalletClientInfo]:
         if self.client_info is not None:
             yield self.client_info
         else:
-            async with get_wallet_client(self.wallet_rpc_port, self.fingerprint) as (wallet_client, fp, config):
+            if "root_path" not in kwargs:
+                kwargs["root_path"] = self.context["root_path"]
+            async with get_wallet_client(self.wallet_rpc_port, self.fingerprint, **kwargs) as (
+                wallet_client,
+                fp,
+                config,
+            ):
                 yield WalletClientInfo(wallet_client, fp, config)

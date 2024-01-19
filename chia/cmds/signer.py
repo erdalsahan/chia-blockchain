@@ -7,7 +7,7 @@ from dataclasses import replace
 from functools import cached_property
 from pathlib import Path
 from threading import Thread
-from typing import Collection, List, Optional, Type, TypeVar
+from typing import List, Optional, Sequence, Type, TypeVar
 
 import click
 from chia_rs import AugSchemeMPL, G2Element
@@ -126,7 +126,7 @@ _T_ClvmStreamable = TypeVar("_T_ClvmStreamable", bound=ClvmStreamable)
 
 @command_helper
 class SPIn(_SPCompression):
-    signer_protocol_input: Collection[str] = option(
+    signer_protocol_input: Sequence[str] = option(
         "--signer-protocol-input",
         "-p",
         type=str,
@@ -137,7 +137,7 @@ class SPIn(_SPCompression):
 
     def read_sp_input(self, typ: Type[_T_ClvmStreamable]) -> List[_T_ClvmStreamable]:
         final_list: List[_T_ClvmStreamable] = []
-        for filename in self.signer_protocol_input:
+        for filename in self.signer_protocol_input:  # pylint: disable=not-an-iterable
             with open(Path(filename), "rb") as file:
                 with clvm_serialization_mode(
                     True, ALL_TRANSPORT_LAYERS[self.compression] if self.compression != "none" else None
@@ -156,7 +156,7 @@ class SPOut(QrCodeDisplay, _SPCompression):
         default="hex",
         help="How to output the information to transfer to an external signer",
     )
-    output_file: Collection[str] = option(
+    output_file: Sequence[str] = option(
         "--output-file",
         "-b",
         type=str,
