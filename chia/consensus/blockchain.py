@@ -194,6 +194,24 @@ class Blockchain(BlockchainInterface):
             return None
         return self.height_to_block_record(self._peak_height)
 
+    def get_tx_peak(self) -> Optional[BlockRecord]:
+        """
+        Return the most recent transaction block. i.e. closest to the peak of the blockchain
+        Requires the blockchain to be initialized and there to be a peak set
+        """
+
+        if self._peak_height is None:
+            return None
+        tx_height = self._peak_height
+        tx_peak = self.height_to_block_record(tx_height)
+        while not tx_peak.is_transaction_block:
+            if tx_height == 0:
+                return None
+            tx_height = uint32(tx_height - 1)
+            tx_peak = self.height_to_block_record(tx_height)
+
+        return tx_peak
+
     async def get_full_peak(self) -> Optional[FullBlock]:
         if self._peak_height is None:
             return None
