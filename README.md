@@ -1,5 +1,5 @@
 # chia-blockchain
-
+ 
 [![Chia Network logo](https://www.chia.net/wp-content/uploads/2022/09/chia-logo.svg "Chia logo")](https://www.chia.net/)
 
 ![Dynamic JSON Badge](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdownload.chia.net%2Flatest%2Fbadge-data.json&query=%24.message&logo=chianetwork&label=Latest%20Release&labelColor=%231e2b2e&color=%230d3349)
